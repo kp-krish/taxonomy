@@ -47,7 +47,7 @@ class TextileGraph:
 
 def addCategory(node,parent,graph,model,keywords):
     graph.add_node(node.lower())
-    graph.add_edge(parent.lower(),node)
+    graph.add_edge(parent.lower(),node.lower())
     keywords.append(node)
     #embeddingFunction(keywords=keywords,model=model)
     embeddings = model.encode(keywords)
