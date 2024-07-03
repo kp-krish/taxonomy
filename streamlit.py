@@ -3,7 +3,10 @@ import pandas as pd
 import networkx as nx
 from sentence_transformers import SentenceTransformer
 import faiss
- 
+
+MAX_FILE_SIZE_MB = 2
+MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB*1024*1024
+
 class TextileGraph:
     def __init__(self):
         self.graph = nx.DiGraph()
@@ -49,11 +52,12 @@ def addCategory(node,parent,graph,model,keywords):
 def create_graph(data):
     textile_graph = TextileGraph()
     textile_graph.add_node("Top")
- 
+    clms=data.columns.tolist()
+    print(clms)
     for index, row in data.iterrows():
-        level1 = row['Level 1: Categories']
-        level2 = row['Level 2: Subcategories']
-        level3 = row['Level 3: Detailed Subcategories']
+        level1 = row[f'{clms[0]}']
+        level2 = row[f'{clms[1]}']
+        level3 = row[f'{clms[2]}']
  
         if pd.notna(level1):
             textile_graph.add_node(level1.lower())
@@ -71,48 +75,82 @@ def create_graph(data):
  
     return textile_graph
  
+def genOutput(keywords,textile_graph,index,model,i):
+    st.write("Press 1: To get Search product/type:")
+    st.write("Press 2: To add new product/type")
+    st.write("Press 3: To display graph")
+    i=i+1
+    choice = st.text_input("Enter choice:",key=f"c_{i}")
+    if choice:
+        choice=int(choice)
+        if choice==1:
+            i=i+1
+            query_text=st.text_input("Enter product that you want to search",key=f"c_{i}")
+            if query_text:
+                query_embedding = model.encode([query_text])
+                k = 2
+                distances, indices = index.search(query_embedding, k)
+                node = keywords[indices[0, 0]].lower()
+                path = textile_graph.find_shortest_path("Top", node)
+                st.write(f"Path: {path[1:]}")
+                genOutput(keywords,textile_graph,index,model,i)
+        elif choice==2:
+            i+=1
+            node=st.text_input("Enter the new type/product that you want to add",key=f"c_{i}")
+            if node:
+                i+=1
+                parent=st.text_input("Enter the parent type for this new product",key=f"c_{i}")
+                if parent:
+                    parent=parent.lower()
+                    if(parent) not in keywords:
+                        st.error("No such parent exist in graph")
+                    else:
+                        keywords.append(node)
+                        embeddings = model.encode(keywords)
+                        d = embeddings.shape[1]
+                        index = faiss.IndexFlatL2(d)
+                        index.add(embeddings)
+                        addCategory(node=node,parent=parent,graph=textile_graph,model=model,keywords=keywords)
+                        genOutput(keywords,textile_graph,index,model,i)
+        elif choice==3:
+            textile_graph.display_graph()
+            genOutput(keywords,textile_graph,index,model,i)
+        else:
+            st.error("Plaese enter valid Choice")
+            genOutput(keywords,textile_graph,index,model,i) 
+
 def main():
-    st.title("Textile Taxonomy Graph")
+    st.title("Taxonomy Graph")
  
     uploaded_file = st.file_uploader("Upload your CSV or Excel file", type=["csv", "xlsx"])
- 
+    
     if uploaded_file:
-        if uploaded_file.name.endswith('.csv'):
-            data = pd.read_csv(uploaded_file)
-        elif uploaded_file.name.endswith('.xlsx'):
-            data = pd.read_excel(uploaded_file)
- 
-        textile_graph = create_graph(data)
-        textile_graph.display_graph()
- 
-        model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
-        #index = faiss.read_index("index_file.index")
-        #st.write(index)
-        #keywords = ['Water Conservation', 'Eco-Friendly Materials', 'Fashion and Apparel', 'Flax', 'Blended Fibers', 'Clothing', 'Upholstery', 'Manufacturing Processes', 'Technical and Industrial Uses', 'Bedding', 'Spandex', 'Agricultural', 'Home and Interior', 'Construction', 'Wool', 'Formal Wear', 'Cotton-Polyester', 'Natural Fibers', 'Waste Reduction', 'Outerwear', 'Curtains', 'Medical', 'Raw Materials', 'Sportswear', 'Open-End Spinning', 'Sustainability', 'Weft Knitting', 'Hemp', 'Industrial Textiles', 'Polyester', 'Digital Printing', 'Plain Weave', 'Screen Printing', 'Worker Rights', 'Non-woven Fabrics', 'Dyeing and Printing', 'Ethical Practices', 'Home Textiles', 'Functional Finishing', 'Wool-Nylon', 'Furniture', 'Knitting', 'Bamboo', 'Nylon', 'Woven Fabrics', 'Silk', 'Air-Jet Spinning', 'Satin Weave', 'Geotextiles', 'Textile Products', 'Acrylic', 'Acid Dyeing', 'Weaving', 'Accessories', 'Energy Efficiency', 'Sustainable Manufacturing Practices', 'Reactive Dyeing', 'Mechanical Finishing', 'Spinning', 'Organic Cotton', 'Twill Weave', 'Ring Spinning', 'Chemical Finishing', 'Fair Trade', 'Protective Textiles', 'Warp Knitting', 'Fabrics', 'Applications', 'Apparel', 'Cotton', 'Polypropylene', 'Medical Textiles', 'Recycled Fibers', 'Knitted Fabrics', 'Casual Wear', 'Decor', 'Towels', 'Synthetic Fibers', 'Automotive', 'Safe Working Conditions', 'Finishing']
- 
-        keywords = textile_graph.returnNodes()
-        print(type(keywords))
-        embeddings = model.encode(keywords)
-        d = embeddings.shape[1]
-        index = faiss.IndexFlatL2(d)
-        index.add(embeddings)
-        #faiss.write_index(index, "index1.index")
- 
- 
-        query_text = st.text_input("Enter Query:")
- 
-        if query_text:
-            query_embedding = model.encode([query_text])
- 
-            # Number of nearest neighbors to search for
-            k = 2
- 
-            # Perform the search
-            distances, indices = index.search(query_embedding, k)
- 
-            node = keywords[indices[0, 0]].lower()
-            path = textile_graph.find_shortest_path("Top", node)
-            st.write(f"Path: {path[1]}->{path[2]}->{path[3]}")
+        file_size = uploaded_file.size
+        if file_size > MAX_FILE_SIZE_BYTES:
+            st.error(f"The file size should not exceed {MAX_FILE_SIZE_MB} MB. Please upload a smaller file.")
+        else:
+            if uploaded_file.name.endswith('.csv'):
+                data = pd.read_csv(uploaded_file)
+            elif uploaded_file.name.endswith('.xlsx'):
+                data = pd.read_excel(uploaded_file)
+    
+            textile_graph = create_graph(data)
+            # textile_graph.display_graph()
+    
+            model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+            #index = faiss.read_index("index_file.index")
+            #st.write(index)
+            #keywords = ['Water Conservation', 'Eco-Friendly Materials', 'Fashion and Apparel', 'Flax', 'Blended Fibers', 'Clothing', 'Upholstery', 'Manufacturing Processes', 'Technical and Industrial Uses', 'Bedding', 'Spandex', 'Agricultural', 'Home and Interior', 'Construction', 'Wool', 'Formal Wear', 'Cotton-Polyester', 'Natural Fibers', 'Waste Reduction', 'Outerwear', 'Curtains', 'Medical', 'Raw Materials', 'Sportswear', 'Open-End Spinning', 'Sustainability', 'Weft Knitting', 'Hemp', 'Industrial Textiles', 'Polyester', 'Digital Printing', 'Plain Weave', 'Screen Printing', 'Worker Rights', 'Non-woven Fabrics', 'Dyeing and Printing', 'Ethical Practices', 'Home Textiles', 'Functional Finishing', 'Wool-Nylon', 'Furniture', 'Knitting', 'Bamboo', 'Nylon', 'Woven Fabrics', 'Silk', 'Air-Jet Spinning', 'Satin Weave', 'Geotextiles', 'Textile Products', 'Acrylic', 'Acid Dyeing', 'Weaving', 'Accessories', 'Energy Efficiency', 'Sustainable Manufacturing Practices', 'Reactive Dyeing', 'Mechanical Finishing', 'Spinning', 'Organic Cotton', 'Twill Weave', 'Ring Spinning', 'Chemical Finishing', 'Fair Trade', 'Protective Textiles', 'Warp Knitting', 'Fabrics', 'Applications', 'Apparel', 'Cotton', 'Polypropylene', 'Medical Textiles', 'Recycled Fibers', 'Knitted Fabrics', 'Casual Wear', 'Decor', 'Towels', 'Synthetic Fibers', 'Automotive', 'Safe Working Conditions', 'Finishing']
+    
+            keywords = textile_graph.returnNodes()
+            embeddings = model.encode(keywords)
+            d = embeddings.shape[1]
+            index = faiss.IndexFlatL2(d)
+            index.add(embeddings)
+            #faiss.write_index(index, "index1.index")
+            genOutput(keywords,textile_graph,index,model,0)
+    
+            
  
 if __name__ == "__main__":
     main()
