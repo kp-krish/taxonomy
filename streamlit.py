@@ -3,6 +3,8 @@ import pandas as pd
 import networkx as nx
 from sentence_transformers import SentenceTransformer
 import faiss
+from pyvis.network import Network
+import streamlit.components.v1 as components
 
 MAX_FILE_SIZE_MB = 2
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB*1024*1024
@@ -30,12 +32,19 @@ class TextileGraph:
     def display_graph(self):
         st.write("Nodes:", self.graph.nodes())
         st.write("Edges:", self.graph.edges())
- 
+
+    def display_graph_pyvis(self):
+        net = Network(notebook=True)
+        net.from_nx(self.graph)
+        path = "network.html"
+        net.save_graph(path)
+        HtmlFile = open(path, 'r', encoding='utf-8')
+        source_code = HtmlFile.read() 
+        components.html(source_code, height=500)
  
     def returnNodes(self):
         return list(self.graph.nodes())
- 
- 
+
 def addCategory(node,parent,graph,model,keywords):
     graph.add_node(node)
     graph.add_edge(parent,node)
@@ -48,7 +57,7 @@ def addCategory(node,parent,graph,model,keywords):
  
     print(f"node added:{parent}->{node}")
     return index
- 
+
 def create_graph(data):
     textile_graph = TextileGraph()
     textile_graph.add_node("Top")
@@ -74,18 +83,18 @@ def create_graph(data):
                     textile_graph.add_edge(level2.lower(), sub.lower())
  
     return textile_graph
- 
-def genOutput(keywords,textile_graph,index,model,i):
+
+def genOutput(keywords, textile_graph, index, model, i):
     st.write("Press 1: To get Search product/type:")
     st.write("Press 2: To add new product/type")
     st.write("Press 3: To display graph")
-    i=i+1
-    choice = st.text_input("Enter choice:",key=f"c_{i}")
+    i = i + 1
+    choice = st.text_input("Enter choice:", key=f"c_{i}")
     if choice:
-        choice=choice.strip()
-        if choice=="1":
-            i=i+1
-            query_text=st.text_input("Enter product that you want to search",key=f"c_{i}")
+        choice = choice.strip()
+        if choice == "1":
+            i = i + 1
+            query_text = st.text_input("Enter product that you want to search", key=f"c_{i}")
             if query_text:
                 query_embedding = model.encode([query_text])
                 k = 2
@@ -93,16 +102,16 @@ def genOutput(keywords,textile_graph,index,model,i):
                 node = keywords[indices[0, 0]].lower()
                 path = textile_graph.find_shortest_path("Top", node)
                 st.write(f"Path: {path[1:]}")
-                genOutput(keywords,textile_graph,index,model,i)
-        elif choice=="2":
-            i+=1
-            node=st.text_input("Enter the new type/product that you want to add",key=f"c_{i}")
+                genOutput(keywords, textile_graph, index, model, i)
+        elif choice == "2":
+            i += 1
+            node = st.text_input("Enter the new type/product that you want to add", key=f"c_{i}")
             if node:
-                i+=1
-                parent=st.text_input("Enter the parent type for this new product",key=f"c_{i}")
+                i += 1
+                parent = st.text_input("Enter the parent type for this new product", key=f"c_{i}")
                 if parent:
-                    parent=parent.lower()
-                    if(parent) not in keywords:
+                    parent = parent.lower()
+                    if (parent) not in keywords:
                         st.error("No such parent exist in graph")
                     else:
                         keywords.append(node)
@@ -110,14 +119,15 @@ def genOutput(keywords,textile_graph,index,model,i):
                         d = embeddings.shape[1]
                         index = faiss.IndexFlatL2(d)
                         index.add(embeddings)
-                        addCategory(node=node,parent=parent,graph=textile_graph,model=model,keywords=keywords)
-                        genOutput(keywords,textile_graph,index,model,i)
-        elif choice=="3":
-            textile_graph.display_graph()
-            genOutput(keywords,textile_graph,index,model,i)
+                        addCategory(node=node, parent=parent, graph=textile_graph, model=model, keywords=keywords)
+                        genOutput(keywords, textile_graph, index, model, i)
+        elif choice == "3":
+            textile_graph.display_graph_pyvis()
+            genOutput(keywords, textile_graph, index, model, i)
         else:
-            st.error("Plaese enter valid Choice")
-            genOutput(keywords,textile_graph,index,model,i) 
+            st.error("Please enter valid Choice")
+            genOutput(keywords, textile_graph, index, model, i) 
+
 
 def main():
     st.title("Taxonomy Graph")
@@ -136,7 +146,7 @@ def main():
     
             textile_graph = create_graph(data)
             # textile_graph.display_graph()
-    
+            print(type(textile_graph))
             model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
             #index = faiss.read_index("index_file.index")
             #st.write(index)
@@ -148,9 +158,7 @@ def main():
             index = faiss.IndexFlatL2(d)
             index.add(embeddings)
             #faiss.write_index(index, "index1.index")
-            genOutput(keywords,textile_graph,index,model,0)
+            genOutput(keywords, textile_graph, index, model, 0)
     
-            
- 
 if __name__ == "__main__":
     main()
