@@ -60,7 +60,7 @@ def addCategory(node,parent,graph,model,keywords):
 
 def create_graph(data):
     textile_graph = TextileGraph()
-    textile_graph.add_node("Top")
+    textile_graph.add_node("top")
     clms=data.columns.tolist()
     print(clms)
     for index, row in data.iterrows():
@@ -70,7 +70,7 @@ def create_graph(data):
  
         if pd.notna(level1):
             textile_graph.add_node(level1.lower())
-            textile_graph.add_edge("Top", level1.lower())
+            textile_graph.add_edge("top", level1.lower())
         if pd.notna(level2):
             textile_graph.add_node(level2.lower())
             if pd.notna(level1):
