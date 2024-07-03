@@ -82,8 +82,8 @@ def genOutput(keywords,textile_graph,index,model,i):
     i=i+1
     choice = st.text_input("Enter choice:",key=f"c_{i}")
     if choice:
-        choice=int(choice)
-        if choice==1:
+        choice=choice.strip()
+        if choice=="1":
             i=i+1
             query_text=st.text_input("Enter product that you want to search",key=f"c_{i}")
             if query_text:
@@ -94,7 +94,7 @@ def genOutput(keywords,textile_graph,index,model,i):
                 path = textile_graph.find_shortest_path("Top", node)
                 st.write(f"Path: {path[1:]}")
                 genOutput(keywords,textile_graph,index,model,i)
-        elif choice==2:
+        elif choice=="2":
             i+=1
             node=st.text_input("Enter the new type/product that you want to add",key=f"c_{i}")
             if node:
@@ -112,7 +112,7 @@ def genOutput(keywords,textile_graph,index,model,i):
                         index.add(embeddings)
                         addCategory(node=node,parent=parent,graph=textile_graph,model=model,keywords=keywords)
                         genOutput(keywords,textile_graph,index,model,i)
-        elif choice==3:
+        elif choice=="3":
             textile_graph.display_graph()
             genOutput(keywords,textile_graph,index,model,i)
         else:
