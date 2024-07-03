@@ -70,7 +70,7 @@ def create_graph(data):
  
         if pd.notna(level1):
             textile_graph.add_node(level1.lower())
-            textile_graph.add_edge("Top", level1.lower())
+            textile_graph.add_edge("top", level1.lower())
         if pd.notna(level2):
             textile_graph.add_node(level2.lower())
             if pd.notna(level1):
